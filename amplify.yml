@@ -6,6 +6,7 @@ frontend:
         - npm ci
     build:
       commands:
+        - env | grep -E '^(AVIATION_STACK_KEY|OPENWEATHER_KEY|AERODATABOX_KEY|AERODATABOX_HOST)' >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next
