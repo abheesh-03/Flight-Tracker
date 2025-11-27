@@ -143,9 +143,16 @@ export default function Home() {
         } else if (data.departure?.scheduled && data.arrival?.scheduled && data.departure?.latitude && data.arrival?.latitude) {
           // Fallback: Calculate estimated position based on schedule
           console.log('Using estimated position based on schedule');
+          console.warn('⚠️ ESTIMATED POSITION - Real-time tracking unavailable');
+
           const now = new Date().getTime();
           const depTime = new Date(data.departure.estimated || data.departure.scheduled).getTime();
           const arrTime = new Date(data.arrival.estimated || data.arrival.scheduled).getTime();
+
+          // Check flight status to determine if it's still in flight
+          const flightStatus = data.flight_status?.toLowerCase();
+          const isActive = flightStatus === 'active' || flightStatus === 'en-route' || flightStatus === 'scheduled';
+          const isLanded = flightStatus === 'landed' || flightStatus === 'arrived';
 
           if (now < depTime) {
             // Not departed yet
@@ -156,8 +163,8 @@ export default function Home() {
               speed: 0,
               heading: 0
             });
-          } else if (now > arrTime) {
-            // Arrived
+          } else if (isLanded || (now > arrTime && !isActive)) {
+            // Only show as arrived if status confirms landing OR time passed and not active
             updateLocationState({
               latitude: parseFloat(data.arrival.latitude),
               longitude: parseFloat(data.arrival.longitude),
@@ -166,10 +173,17 @@ export default function Home() {
               heading: 0
             });
           } else {
-            // In flight - Interpolate
+            // In flight - Interpolate position
+            // If flight is active but past scheduled arrival, cap progress at 95%
             const totalDuration = arrTime - depTime;
             const elapsed = now - depTime;
-            const progress = elapsed / totalDuration;
+            let progress = elapsed / totalDuration;
+
+            // If status is active and we're past arrival time, cap at 95% to show still in flight
+            if (isActive && progress > 0.95) {
+              progress = 0.95;
+              console.log('Flight still active - capping progress at 95%');
+            }
 
             const lat1 = parseFloat(data.departure.latitude);
             const lon1 = parseFloat(data.departure.longitude);

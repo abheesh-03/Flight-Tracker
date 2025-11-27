@@ -400,6 +400,16 @@ export default function FlightInfo({
                     </div>
                 </div>
 
+                {/* Estimated Position Warning */}
+                {(!aircraft?.icao24 && currentSpeed > 0) && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-amber-800">
+                            <span className="font-semibold">Estimated Position</span> - Real-time tracking unavailable. Position is calculated based on scheduled times and may not reflect actual location.
+                        </div>
+                    </div>
+                )}
+
                 {/* Progress Bar */}
                 <div className="space-y-2">
                     <div className="flex justify-between text-xs font-medium text-gray-500">
