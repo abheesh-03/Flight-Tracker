@@ -401,6 +401,90 @@ export default function Home() {
     }
   }, [flightData, locationData]); // Re-run when flight data or location data changes
 
+  // Continuous animation timer for estimated position
+  useEffect(() => {
+    let animationTimer: NodeJS.Timeout | null = null;
+
+    // Only animate if using estimated position (no real-time data)
+    if (flightData && !icao24 && !locationData) {
+      const updateEstimatedPosition = () => {
+        if (!flightData.departure?.scheduled || !flightData.arrival?.scheduled) return;
+        if (!flightData.departure?.latitude || !flightData.arrival?.latitude) return;
+
+        const now = new Date().getTime();
+        const depTime = new Date(flightData.departure.estimated || flightData.departure.scheduled).getTime();
+        const arrTime = new Date(flightData.arrival.estimated || flightData.arrival.scheduled).getTime();
+
+        // Check flight status
+        const flightStatus = flightData.flight_status?.toLowerCase();
+        const isActive = flightStatus === 'active' || flightStatus === 'en-route' || flightStatus === 'scheduled';
+        const isLanded = flightStatus === 'landed' || flightStatus === 'arrived';
+
+        if (now < depTime) {
+          // Not departed yet - stay at origin
+          updateLocationState({
+            latitude: parseFloat(flightData.departure.latitude),
+            longitude: parseFloat(flightData.departure.longitude),
+            altitude: 0,
+            speed: 0,
+            heading: 0
+          });
+        } else if (isLanded || (now > arrTime && !isActive)) {
+          // Landed - stay at destination
+          updateLocationState({
+            latitude: parseFloat(flightData.arrival.latitude),
+            longitude: parseFloat(flightData.arrival.longitude),
+            altitude: 0,
+            speed: 0,
+            heading: 0
+          });
+        } else {
+          // In flight - animate position
+          const totalDuration = arrTime - depTime;
+          const elapsed = now - depTime;
+          let progress = elapsed / totalDuration;
+
+          // Cap at 95% if still active
+          if (isActive && progress > 0.95) {
+            progress = 0.95;
+          }
+
+          const lat1 = parseFloat(flightData.departure.latitude);
+          const lon1 = parseFloat(flightData.departure.longitude);
+          const lat2 = parseFloat(flightData.arrival.latitude);
+          const lon2 = parseFloat(flightData.arrival.longitude);
+
+          const curLat = lat1 + (lat2 - lat1) * progress;
+          const curLon = lon1 + (lon2 - lon1) * progress;
+
+          // Calculate bearing
+          const y = Math.sin(deg2rad(lon2 - lon1)) * Math.cos(deg2rad(lat2));
+          const x = Math.cos(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) -
+            Math.sin(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(deg2rad(lon2 - lon1));
+          const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+
+          updateLocationState({
+            latitude: curLat,
+            longitude: curLon,
+            altitude: 35000,
+            speed: 800,
+            heading: bearing
+          });
+        }
+      };
+
+      // Update immediately
+      updateEstimatedPosition();
+
+      // Then update every 5 seconds to animate
+      animationTimer = setInterval(updateEstimatedPosition, 5000);
+    }
+
+    return () => {
+      if (animationTimer) clearInterval(animationTimer);
+    };
+  }, [flightData, icao24, locationData]); // Re-run when flight data changes
+
   const estimatedPos = !locationData ? getEstimatedPosition() : null;
   const position: [number, number] | null = locationData
     ? [locationData.latitude, locationData.longitude]
